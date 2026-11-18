@@ -61,6 +61,7 @@ def viterbi_decode(cands: pd.DataFrame, prob_col: str, router: Router,
     """
     xy = np.asarray(track_xy, dtype=float)
     out = np.full(len(xy), -1, dtype=np.int64)
+    router.dead_end_restarts = 0
     if cands.empty or len(xy) == 0:
         return out
     required = {"point_idx", "segment_id", "arc_id", "proj_frac", "dist_m"}
@@ -112,6 +113,7 @@ def viterbi_decode(cands: pd.DataFrame, prob_col: str, router: Router,
                 )):
                     reachable[j] = True
         if not reachable.any():
+            router.dead_end_restarts += 1
             flush()
             run_points, run_groups = [point], [group]
             run_segment, active = segment, np.ones(len(group), dtype=bool)
