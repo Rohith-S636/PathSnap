@@ -60,8 +60,10 @@ def evaluate_prediction(result: PredictionResult, partition_dir: str, net: RoadN
     trip = load_trip(partition_dir, result.trip_id, with_route=True)
     xy = net.project_track(trip.track)
     ref = align_points_to_route(net, xy, trip.route, float(CFG["labels"]["max_dist_m"]))
+    candidate_k = int(result.candidate_k if result.candidate_k is not None else CFG["candidates"]["k"])
+    candidate_radius = float(result.candidate_radius_m if result.candidate_radius_m is not None else CFG["candidates"]["radius_m"])
     cands = generate_candidates(
-        trip, net, int(CFG["candidates"]["k"]), float(CFG["candidates"]["radius_m"]),
+        trip, net, candidate_k, candidate_radius,
         split_s=float(CFG["gaps"]["split_s"]), track_xy=xy,
     )
     labelled = ref >= 0
