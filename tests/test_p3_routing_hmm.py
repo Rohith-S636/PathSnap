@@ -73,6 +73,8 @@ def test_viterbi_restarts_after_dead_end():
         dict(point_idx=0, segment_id=0, arc_id=0, proj_frac=0.5, dist_m=1.0, prob=0.9),
         dict(point_idx=1, segment_id=0, arc_id=2, proj_frac=0.5, dist_m=1.0, prob=0.8),
     ])
-    decoded = viterbi_decode(rows, "prob", Router(net), xy,
+    router = Router(net)
+    decoded = viterbi_decode(rows, "prob", router, xy,
                              {"emission": "classifier", "max_route_factor": 0, "max_route_extra_m": 0})
     np.testing.assert_array_equal(decoded, [0, 2])
+    assert router.dead_end_restarts == 1
