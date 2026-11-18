@@ -44,7 +44,7 @@ def _candidates(arcs_by_point, segments=None):
 
 def test_viterbi_follows_connected_sequence():
     net = _network()
-    xy = net.project_track(net.nodes_lonlat[:3])
+    xy = net.project(net.nodes_lonlat[:3, 0], net.nodes_lonlat[:3, 1])
     cands = _candidates([0, 1, 2])
     decoded = viterbi_decode(cands, "prob", Router(net), xy,
                              {"emission": "classifier", "beta_m": 5, "max_route_factor": 4})
@@ -68,7 +68,7 @@ def test_viterbi_splits_at_segment_boundaries():
 
 def test_viterbi_restarts_after_dead_end():
     net = _network()
-    xy = net.project_track(net.nodes_lonlat[[0, 2]])
+    xy = net.project(net.nodes_lonlat[[0, 2], 0], net.nodes_lonlat[[0, 2], 1])
     rows = pd.DataFrame([
         dict(point_idx=0, segment_id=0, arc_id=0, proj_frac=0.5, dist_m=1.0, prob=0.9),
         dict(point_idx=1, segment_id=0, arc_id=2, proj_frac=0.5, dist_m=1.0, prob=0.8),
