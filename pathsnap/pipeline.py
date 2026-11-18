@@ -9,7 +9,7 @@ import numpy as np
 from . import schema
 from .candidates import generate_candidates, segment_track
 from .config import CFG
-from .features import add_features
+from .features import FEATURE_COLS, add_features
 from .hmm import viterbi_decode
 from .io import load_trip
 from .network import RoadNetwork
@@ -37,14 +37,23 @@ class PathSnapPredictor:
         self.feature_cols = ["dist_m"]
         self.candidate_cfg = dict(CFG["candidates"])
         self.hmm_cfg = dict(CFG["hmm"])
-        meta_path, model_path = self.artifacts_dir / "model_meta.json", self.artifacts_dir / "model.joblib"
+        meta_path = self.artifacts_dir / "model_meta.json"
+        model_path = self.artifacts_dir / "model.joblib"
+        # Prefer the final tuned artifact. Until P2 exports it, use its committed
+        # all-training logistic-regression baseline so P3 exercises real features
+        # and classifier probabilities instead of silently reverting to distance-only.
+        baseline_path = self.artifacts_dir / "untuned" / "logreg.joblib"
         if meta_path.exists():
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
             self.model_name = str(meta.get("model_name", self.model_name))
-            self.feature_cols = list(meta.get("feature_cols", self.feature_cols))
+            self.feature_cols = list(meta.get("feature_cols", FEATURE_COLS))
             self.candidate_cfg.update(meta.get("candidates", {}))
         if model_path.exists():
             self.model = joblib.load(model_path)
+        elif baseline_path.exists():
+            self.model = joblib.load(baseline_path)
+            self.model_name = "logreg-untuned-baseline"
+            self.feature_cols = list(FEATURE_COLS)
         hmm_path = self.artifacts_dir / "hmm_config.json"
         if hmm_path.exists():
             self.hmm_cfg.update(json.loads(hmm_path.read_text(encoding="utf-8")))
