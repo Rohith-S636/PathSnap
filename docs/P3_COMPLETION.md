@@ -13,6 +13,7 @@ P3 consumes candidate road arcs and P2 classifier probabilities, then reconstruc
 - Bounded shortest-path route filling between decoded arcs inside the same time segment. Separate segments are never joined.
 - Classifier-only and HMM pointwise accuracy, route continuity, candidate miss rate, and route-set precision/recall/F1 are emitted per trip.
 - A one-trip preprocessing cache reuses the road index, candidates, and classifier probabilities while searching HMM settings. The cache is bounded to one trip to limit memory.
+- Prediction calls are serialized with a reentrant lock because the model feature context and bounded cache are shared instance state across API worker threads.
 - Reference route loading is isolated in `pathsnap.evaluate`; it does not enter `PredictionResult` or the predictor.
 
 ## Reproducible commands
