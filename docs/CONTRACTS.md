@@ -30,6 +30,11 @@ One row per (trip_id, point_idx, candidate arc_id). It is a pandas DataFrame sav
 | label | int 1/0/-1 | P1 (from `labels.py`), training only |
 | prob | float | added at inference = `model.predict_proba(X)[:, 1]` |
 
+- Points with **no candidate** inside the radius have **no rows**. Use `candidates.points_without_candidates(cands, n)`.
+- The per-point table `points_{part}.parquet` (`schema.POINT_COLS`) holds `ref_arc` for every point. Use it for top-1 accuracy and miss rate.
+- Train trips with less than 50% labelled points are left out of both tables (rule `labels.min_labelled_share`). See `docs/P1_DATA_NOTES.md`.
+- Build both tables with `python -m scripts.build_dataset` (about 10 s). `data/processed/` is gitignored.
+
 ## 4. Function signatures (already stubbed, don't change them)
 ```
 io.load_trip(dir, trip_id, with_route=False) -> Trip                       # done
