@@ -1,0 +1,3 @@
+baseline,partition,top1_accuracy
+nearest_arc,train,0.5551891099244667
+nearest_arc,test,0.5357236188783777
