@@ -1,6 +1,7 @@
 """Synthetic P3 tests: directed routing, fractional distances, Viterbi and missing observations."""
 import numpy as np
 import pandas as pd
+from pathsnap.pipeline import PathSnapPredictor
 
 from pathsnap.io import Trip
 from pathsnap.network import RoadNetwork
@@ -78,3 +79,20 @@ def test_viterbi_restarts_after_dead_end():
                              {"emission": "classifier", "max_route_factor": 0, "max_route_extra_m": 0})
     np.testing.assert_array_equal(decoded, [0, 2])
     assert router.dead_end_restarts == 1
+
+
+def test_pipeline_loads_committed_p2_baseline_when_final_artifact_is_absent(tmp_path, monkeypatch):
+    import pathsnap.pipeline as pipeline_module
+    artifacts = tmp_path / "artifacts"
+    baseline = artifacts / "untuned" / "logreg.joblib"
+    baseline.parent.mkdir(parents=True)
+    baseline.write_bytes(b"synthetic-test-artifact")
+    sentinel_model = object()
+    monkeypatch.setattr(pipeline_module.joblib, "load", lambda path: sentinel_model)
+
+    predictor = PathSnapPredictor(str(artifacts))
+
+    assert predictor.model is sentinel_model
+    assert predictor.model_name == "logreg-untuned-baseline"
+    assert predictor.feature_cols == pipeline_module.FEATURE_COLS
+    assert predictor.hmm_cfg["emission"] == "classifier"
