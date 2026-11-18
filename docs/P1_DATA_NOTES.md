@@ -39,3 +39,43 @@ net.arcs_near_track(xy, 100)               # "relevant road network" for maps
 - **Reference route contiguity** is 98–100%, so the reference itself has small breaks, and labels are derived rather than observed. State this when reporting accuracies.
 - **Class balance:** about 16% of candidate rows are positive (1 correct arc out of about 6 candidates per point).
 - Many trips are slow (few points above 8 m/s), so mixed vehicles, cycling or walking speeds are likely.
+
+---
+
+## Phase 2 (P1)
+
+### 1. k and radius tuned end to end (train only)
+`python -m scripts.candidate_tuning` → `results/data/candidate_tuning.csv`, `results/plots/p1_candidate_tuning.png`.
+For each setting: rebuild the train tables, run 5-fold GroupKFold by trip with logistic regression, and HMM-decode every held-out trip.
+
+| k / r | miss | CV top-1 classifier | CV top-1 + HMM (untuned) | transitions/step |
+|---|---|---|---|---|
+| 4 / 60 | 2.39% | 87.65% | 74.07% | 13.6 |
+| 8 / 45 | 0.55% | 88.07% | 74.59% | 35.7 |
+| **8 / 60** | **0.46%** | **88.14%** | **72.49%** | **41.7** |
+| 12 / 60 | 0.19% | 88.25% | 72.47% | 73.9 |
+| 16 / 60 | 0.11% | 88.28% | 72.52% | 106.1 |
+
+- **We keep k = 8, r = 60.** Above k = 8 the classifier gains ≤ 0.14 points for 1.8–2.5× the HMM work.
+- The ceiling (1 − miss) is 99.5%, but the classifier reaches 88.1%. The remaining error is in **ranking** (mostly two-way twins), not in candidate generation.
+- **For P3:** with default settings the HMM is about 15.7 points *below* the classifier on held-out train trips, at every k. A smaller radius (45 m) helps the untuned HMM. Re-check r after tuning β, σ and emission mode.
+
+### 2. Faster inference (routing + Viterbi)
+Profiling `/predict` showed **Viterbi was about 90% of request time**, while the network build took ≤ 70 ms even on large trips. Causes:
+- one Python `route_distance` call per candidate pair;
+- a Dijkstra cache keyed by `(source, bound)` that rarely hit, because the bound changes every step;
+- a pandas `iterrows` reachability pass that repeated the same routing done again in the decoder.
+
+Changes in `routing.py` / `hmm.py`:
+- Dijkstra on plain lists from the CSR arrays.
+- Cache keyed by source node, reused for any smaller bound.
+- `Router.transition_matrix()` for a whole step.
+- One reachability + decode pass with a vectorised recurrence.
+
+**The output is identical:** every decoded arc, `route_arcs` and restart count were compared with the old code on all 10 test and 80 train trips (`tests/test_p1_routing_speed.py` also checks routing against scipy's Dijkstra). Latency numbers are in `results/data/inference_latency.csv` (`python -m scripts.benchmark_latency`).
+
+### 3. Report
+`report/sections/02b_preprocessing.md`: the preprocessing, label derivation, candidate generation, k/r choice, data limitations and latency (report §2 Q1).
+
+### 4. Features for P2
+The ideas planned for this phase are already in `FEATURE_COLS`: `heading_align` / `heading_diff_deg` (±3 s heading vs arc bearing), `is_oneway`, `to_out_degree`. The tuning above shows that the remaining classifier error is ranking between twins, so direction features are where further gains are likely.
