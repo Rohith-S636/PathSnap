@@ -34,7 +34,7 @@ class PathSnapPredictor:
         self.artifacts_dir = Path(artifacts_dir)
         self.model = None
         self.model_name = "distance-baseline"
-        self.feature_cols = ["dist_m"]
+        self.feature_cols = list(FEATURE_COLS)
         self.candidate_cfg = dict(CFG["candidates"])
         self.hmm_cfg = dict(CFG["hmm"])
         meta_path = self.artifacts_dir / "model_meta.json"
@@ -50,6 +50,8 @@ class PathSnapPredictor:
             self.candidate_cfg.update(meta.get("candidates", {}))
         if model_path.exists():
             self.model = joblib.load(model_path)
+            if not meta_path.exists():
+                self.model_name = "classifier-artifact"
         elif baseline_path.exists():
             self.model = joblib.load(baseline_path)
             self.model_name = "logreg-untuned-baseline"
