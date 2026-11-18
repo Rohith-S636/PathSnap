@@ -1,0 +1,34 @@
+# Single source of truth for paths and tunable constants.
+# Change values here, never hardcode them in modules. Changing a value = announce in team chat.
+
+seed: 42
+
+paths:
+  train_dir: dataset/train
+  test_dir: dataset/test          # "student testing" partition
+  eval_dir: dataset/test          # override with env PATHSNAP_EVAL_DIR on demo day
+  processed_dir: data/processed
+  artifacts_dir: artifacts
+  results_dir: results
+
+labels:
+  max_dist_m: 50.0                # GPS point farther than this from aligned route arc -> unlabelled (-1)
+
+candidates:
+  k: 8                            # max candidate arcs per GPS point
+  radius_m: 60.0                  # search radius around each GPS point
+
+gaps:
+  split_s: 60.0                   # time gap that splits a track into independent HMM segments
+
+cv:
+  n_splits: 5                     # GroupKFold over trip_id (80 training trips)
+
+hmm:
+  sigma_m: 10.0                   # emission noise std (if distance term used)
+  beta_m: 5.0                     # transition: exp(-|route_dist - straight_dist| / beta)
+  max_route_factor: 4.0           # prune transitions whose route distance > factor * straight + 50 m
+  emission: classifier            # classifier | distance | product
+
+metrics:
+  continuity_max_hops: 3          # consecutive predicted arcs "connected" if reachable within N arc hops
