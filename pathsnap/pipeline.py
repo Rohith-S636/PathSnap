@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import time
+import threading
 
 import joblib
 import numpy as np
@@ -43,6 +44,7 @@ class PathSnapPredictor:
         self.feature_cols = list(FEATURE_COLS)
         self.candidate_cfg = dict(CFG["candidates"])
         self.hmm_cfg = dict(CFG["hmm"])
+        self._predict_lock = threading.RLock()
         self._trip_cache_key = None
         self._trip_cache = None
 
@@ -117,6 +119,12 @@ class PathSnapPredictor:
         return route
 
     def predict(self, partition_dir: str, trip_id: str) -> tuple[PredictionResult, RoadNetwork]:
+        # The model, feature context and one-trip cache are shared by API requests.
+        # Serialize prediction to prevent concurrent requests from mixing trip state.
+        with self._predict_lock:
+            return self._predict_locked(partition_dir, trip_id)
+
+    def _predict_locked(self, partition_dir: str, trip_id: str) -> tuple[PredictionResult, RoadNetwork]:
         timings, start = {}, time.perf_counter()
         cache_key = (
             str(Path(partition_dir).resolve()), str(trip_id),
