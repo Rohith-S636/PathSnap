@@ -53,7 +53,7 @@ def test_viterbi_follows_connected_sequence():
 
 def test_viterbi_preserves_no_candidate_as_minus_one():
     net = _network()
-    xy = net.project_track(net.nodes_lonlat[:3])
+    xy = net.project(net.nodes_lonlat[:3, 0], net.nodes_lonlat[:3, 1])
     decoded = viterbi_decode(_candidates([0, None, 2]), "prob", Router(net), xy, {"emission": "distance"})
     np.testing.assert_array_equal(decoded, [0, -1, 2])
 
