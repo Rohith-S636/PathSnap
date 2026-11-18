@@ -24,6 +24,8 @@ class PredictionResult:
     hmm_arc: np.ndarray
     route_arcs: list[int]
     timings_ms: dict = field(default_factory=dict)
+    candidate_k: int | None = None
+    candidate_radius_m: float | None = None
 
 
 class PathSnapPredictor:
@@ -127,4 +129,5 @@ class PathSnapPredictor:
         route_arcs = self._continuous_route(
             hmm_arc, segment_ids, router, float(self.hmm_cfg.get("route_fill_max_m", 2000.0)))
         timings["total"] = (time.perf_counter() - start) * 1000
-        return PredictionResult(trip_id, len(trip.track), classifier_arc, hmm_arc, route_arcs, timings), net
+        return PredictionResult(trip_id, len(trip.track), classifier_arc, hmm_arc, route_arcs, timings,
+                                int(self.candidate_cfg["k"]), float(self.candidate_cfg["radius_m"])), net
