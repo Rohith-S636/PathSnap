@@ -84,7 +84,8 @@ class PathSnapPredictor:
         for arc, segment in zip(decoded, segment_ids):
             arc, segment = int(arc), int(segment)
             if arc < 0:
-                previous = previous_segment = None
+                # Preserve the last state within this segment; the final route can bridge
+                # a short candidate-free interval with directed shortest-path arcs.
                 continue
             if previous is None or previous_segment != segment:
                 if not route or route[-1] != arc:
@@ -119,6 +120,7 @@ class PathSnapPredictor:
         t0 = time.perf_counter()
         router = Router(net)
         hmm_arc = viterbi_decode(cands, "prob", router, xy, self.hmm_cfg)
+        timings["dead_end_restarts"] = float(getattr(router, "dead_end_restarts", 0))
         timings["viterbi"] = (time.perf_counter() - t0) * 1000
         segment_ids = segment_track(trip.track[:, 2], float(self.hmm_cfg.get(
             "gap_split_s", CFG["gaps"]["split_s"])))
