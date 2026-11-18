@@ -13,6 +13,8 @@ paths:
 
 labels:
   max_dist_m: 50.0                # GPS point farther than this from aligned route arc -> unlabelled (-1)
+  min_labelled_share: 0.5         # drop a trip from training/eval tables if fewer points can be labelled
+                                  # (GPS systematically offset from the network, e.g. train 00000033/00000054)
 
 candidates:
   k: 8                            # max candidate arcs per GPS point

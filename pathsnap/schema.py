@@ -23,7 +23,14 @@ LABEL_COL = "label"
 GROUP_COL = "trip_id"  # GroupKFold groups — never split a trip across folds
 
 # Base geometric columns produced by candidates.py (P1).
-CANDIDATE_BASE_COLS = ["dist_m", "proj_frac", "arc_len_m", "arc_bearing_deg"]
+CANDIDATE_BASE_COLS = ["dist_m", "proj_frac", "arc_len_m", "arc_bearing_deg", "rank"]  # rank: 0 = nearest
+
+# Per-point table (data/processed/points_{part}.parquet), produced by scripts/build_dataset.py (P1):
+#   trip_id, point_idx, t, segment_id, x, y (projected m), ref_arc (-1 = unlabelled),
+#   ref_dist_m, n_candidates, ref_in_candidates
+# Use it for top-1 accuracy / miss rate (points with no candidate rows still appear here).
+POINT_COLS = ["trip_id", "point_idx", "t", "segment_id", "x", "y", "ref_arc", "ref_dist_m",
+              "n_candidates", "ref_in_candidates"]
 
 # Model inputs produced by features.py (P2). Keep this list in sync with features.py.
 FEATURE_COLS: list[str] = [
