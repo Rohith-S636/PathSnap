@@ -27,7 +27,7 @@ def _decode_chunk(groups, points, router, cfg, prob_col):
     for i in range(1, len(points)):
         straight = float(np.linalg.norm(cfg["_track_xy"][points[i]] - cfg["_track_xy"][points[i - 1]]))
         bound = max(0.0, factor * straight + extra)
-        next_scores = np.full(len(states[i]), -np.inf)
+        best = np.full(len(states[i]), -np.inf)
         back = np.full(len(states[i]), -1, dtype=np.int32)
         for j, arc in enumerate(states[i]):
             for k, prev_arc in enumerate(states[i - 1]):
@@ -37,8 +37,9 @@ def _decode_chunk(groups, points, router, cfg, prob_col):
                                            int(arc), fracs[i][j], bound)
                 if np.isfinite(rd):
                     value = scores[k] - abs(rd - straight) / beta
-                    if value > next_scores[j]:
-                        next_scores[j], back[j] = value + emissions[i][j], k
+                    if value > best[j]:
+                        best[j], back[j] = value, k
+        next_scores = best + emissions[i]
         if not np.isfinite(next_scores).any():
             raise RuntimeError("Internal Viterbi error: chunk crosses a dead-end transition")
         scores = next_scores
