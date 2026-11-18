@@ -1,6 +1,7 @@
 """Synthetic P3 tests: directed routing, fractional distances, Viterbi and missing observations."""
 import numpy as np
 import pandas as pd
+from pathsnap.pipeline import PathSnapPredictor
 
 from pathsnap.io import Trip
 from pathsnap.network import RoadNetwork
@@ -78,3 +79,43 @@ def test_viterbi_restarts_after_dead_end():
                              {"emission": "classifier", "max_route_factor": 0, "max_route_extra_m": 0})
     np.testing.assert_array_equal(decoded, [0, 2])
     assert router.dead_end_restarts == 1
+
+
+def test_pipeline_loads_committed_p2_baseline_when_final_artifact_is_absent(tmp_path, monkeypatch):
+    import pathsnap.pipeline as pipeline_module
+    artifacts = tmp_path / "artifacts"
+    baseline = artifacts / "untuned" / "logreg.joblib"
+    baseline.parent.mkdir(parents=True)
+    baseline.write_bytes(b"synthetic-test-artifact")
+    sentinel_model = object()
+    monkeypatch.setattr(pipeline_module.joblib, "load", lambda path: sentinel_model)
+
+    predictor = PathSnapPredictor(str(artifacts))
+
+    assert predictor.model is sentinel_model
+    assert predictor.model_name == "logreg-untuned-baseline"
+    assert predictor.feature_cols == pipeline_module.FEATURE_COLS
+    assert predictor.hmm_cfg["emission"] == "classifier"
+
+def test_viterbi_backpointer_compares_transition_scores_before_current_emission():
+    from pathsnap.hmm import _decode_chunk
+
+    class ControlledRouter:
+        def route_distance(self, prev_arc, prev_frac, arc, frac, bound):
+            return 0.0 if prev_arc == 0 else 0.05
+
+    previous = pd.DataFrame([
+        dict(arc_id=0, proj_frac=0.5, dist_m=1.0, prob=0.9),
+        dict(arc_id=1, proj_frac=0.5, dist_m=1.0, prob=0.8),
+    ])
+    current = pd.DataFrame([
+        dict(arc_id=2, proj_frac=0.5, dist_m=1.0, prob=0.01),
+    ])
+    decoded = _decode_chunk(
+        [previous, current], [0, 1], ControlledRouter(),
+        {"emission": "classifier", "beta_m": 1.0, "max_route_factor": 4.0,
+         "max_route_extra_m": 50.0, "_track_xy": np.zeros((2, 2))},
+        "prob",
+    )
+    np.testing.assert_array_equal(decoded, [0, 2])
+
