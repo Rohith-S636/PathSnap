@@ -27,10 +27,9 @@ def _decode_chunk(groups, points, router, cfg, prob_col):
     for i in range(1, len(points)):
         straight = float(np.linalg.norm(cfg["_track_xy"][points[i]] - cfg["_track_xy"][points[i - 1]]))
         bound = max(0.0, factor * straight + extra)
-        nxt_scores = np.full(len(states[i]), -np.inf)
+        next_scores = np.full(len(states[i]), -np.inf)
         back = np.full(len(states[i]), -1, dtype=np.int32)
         for j, arc in enumerate(states[i]):
-            best, best_k = -np.inf, -1
             for k, prev_arc in enumerate(states[i - 1]):
                 if not np.isfinite(scores[k]):
                     continue
@@ -38,14 +37,11 @@ def _decode_chunk(groups, points, router, cfg, prob_col):
                                            int(arc), fracs[i][j], bound)
                 if np.isfinite(rd):
                     value = scores[k] - abs(rd - straight) / beta
-                    if value > best:
-                        best, best_k = value, k
-            if best_k >= 0:
-                nxt_scores[j], back[j] = best + emissions[i][j], best_k
-        if not np.isfinite(nxt_scores).any():
-            # Caller splits at this dead end; reaching here indicates a numerical edge case.
-            raise RuntimeError("Viterbi chunk contains an unreachable transition boundary")
-        scores = nxt_scores
+                    if value > next_scores[j]:
+                        next_scores[j], back[j] = value + emissions[i][j], k
+        if not np.isfinite(next_scores).any():
+            raise RuntimeError("Internal Viterbi error: chunk crosses a dead-end transition")
+        scores = next_scores
         backs.append(back)
     state = int(np.argmax(scores))
     decoded = np.empty(len(points), dtype=np.int64)
@@ -60,8 +56,8 @@ def viterbi_decode(cands: pd.DataFrame, prob_col: str, router: Router,
                    track_xy: np.ndarray, hmm_cfg: dict) -> np.ndarray:
     """Return an arc id for every GPS point; -1 for observations with no candidate.
 
-    Runs split at segment_id changes, missing candidate observations, and dead ends. A dead
-    end closes the previous Viterbi run and starts a new run at the current observation.
+    Decoding restarts at segment boundaries, missing-candidate observations, and when no
+    transition is reachable from any currently reachable Viterbi state.
     """
     xy = np.asarray(track_xy, dtype=float)
     out = np.full(len(xy), -1, dtype=np.int64)
@@ -79,7 +75,7 @@ def viterbi_decode(cands: pd.DataFrame, prob_col: str, router: Router,
     grouped = {int(p): g.sort_values("arc_id", kind="stable")
                for p, g in work.groupby("point_idx", sort=True)}
     ordered = sorted(p for p in grouped if 0 <= p < len(xy))
-    run_points, run_groups, run_segment = [], [], None
+    run_points, run_groups, run_segment, active = [], [], None, None
 
     def flush():
         if run_points:
@@ -87,39 +83,41 @@ def viterbi_decode(cands: pd.DataFrame, prob_col: str, router: Router,
                 run_groups, run_points, router, cfg, prob_col
             )
 
+    beta = max(float(cfg.get("beta_m", 5.0)), 1e-6)
+    factor, extra = float(cfg.get("max_route_factor", 4.0)), float(cfg.get("max_route_extra_m", 50.0))
     for point in ordered:
         group = grouped[point]
         segment = int(group["segment_id"].iloc[0])
         if run_points and (point != run_points[-1] + 1 or segment != run_segment):
             flush()
-            run_points, run_groups = [], []
+            run_points, run_groups, active = [], [], None
         if not run_points:
             run_segment = segment
-            run_points.append(point)
-            run_groups.append(group)
+            run_points, run_groups = [point], [group]
+            active = np.ones(len(group), dtype=bool)
             continue
-        # Detect whether any legal transition reaches the current candidate layer.
-        prev_group = run_groups[-1]
+        previous = run_groups[-1]
         straight = float(np.linalg.norm(xy[point] - xy[run_points[-1]]))
-        bound = max(0.0, float(cfg.get("max_route_factor", 4.0)) * straight
-                    + float(cfg.get("max_route_extra_m", 50.0)))
-        reachable = False
-        for _, prev in prev_group.iterrows():
-            for _, curr in group.iterrows():
+        bound = max(0.0, factor * straight + extra)
+        reachable = np.zeros(len(group), dtype=bool)
+        prev_rows = previous.reset_index(drop=True)
+        curr_rows = group.reset_index(drop=True)
+        for k, prev in prev_rows.iterrows():
+            if not active[k]:
+                continue
+            for j, curr in curr_rows.iterrows():
                 if np.isfinite(router.route_distance(
                     int(prev["arc_id"]), float(prev["proj_frac"]),
                     int(curr["arc_id"]), float(curr["proj_frac"]), bound
                 )):
-                    reachable = True
-                    break
-            if reachable:
-                break
-        if not reachable:
+                    reachable[j] = True
+        if not reachable.any():
             flush()
             run_points, run_groups = [point], [group]
-            run_segment = segment
+            run_segment, active = segment, np.ones(len(group), dtype=bool)
         else:
             run_points.append(point)
             run_groups.append(group)
+            active = reachable
     flush()
     return out
