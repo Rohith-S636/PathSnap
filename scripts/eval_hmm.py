@@ -47,6 +47,8 @@ def _mean_objective(frame: pd.DataFrame) -> float:
 
 def _parameter_grid(has_model: bool, quick: bool) -> list[dict]:
     emissions = ["distance"] if not has_model else ["distance", "classifier", "product"]
+    if quick:
+        emissions = ["classifier"] if has_model else ["distance"]
     sigmas = [10.0] if quick else [8.0, 10.0, 15.0]
     betas = [5.0] if quick else [2.0, 5.0, 10.0]
     factors = [4.0] if quick else [2.0, 4.0, 8.0]
