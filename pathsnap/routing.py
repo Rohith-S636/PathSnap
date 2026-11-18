@@ -14,7 +14,7 @@ class Router:
 
     def _bounded_dijkstra(self, source: int, max_m: float):
         bound = max(0.0, float(max_m))
-        key = (int(source), round(bound, 3))
+        key = (int(source), bound)
         cached = self._cache.get(key)
         if cached is not None:
             self._cache.move_to_end(key)
@@ -91,6 +91,4 @@ class Router:
         if source == target:
             return []
         dist, prev = self._bounded_dijkstra(source, max_m)
-        if target not in dist:
-            return []
-        return self._reconstruct(source, target, prev)
+        return self._reconstruct(source, target, prev) if target in dist else []
